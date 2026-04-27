@@ -2,9 +2,72 @@ from ultralytics import YOLO
 import cv2
 import math
 import csv
+import os
+import pandas as pd
+import torch
+import torch.nn as nn
+
+
+df = pd.read_csv("Final_Shots.csv")
+
+df = df[df["frame"] != "frame"]
+df =df.astype(float)
+x = df.drop("made", axis = 1)
+y = df['made']
+
+x1 = torch.tensor(x.values, dtype = torch.float32)
+y1 = torch.tensor(y.values, dtype = torch.float32).view(-1,1)
+
+
+pytorch_model = nn.Sequential(
+    nn.Linear(9,16),
+    nn.ReLU(),
+    nn.Linear(16,8),
+    nn.ReLU(),
+    nn.Linear(8,1),
+    
+    nn.Sigmoid()
+
+)
+
+loss = nn.BCELoss()
+optimizer = torch.optim.Adam(pytorch_model.parameters(), lr=0.001)
+
+for epoch in range(1000):
+    prediction = pytorch_model(x1)
+    l = loss(prediction, y1)
+
+    optimizer.zero_grad()
+    l.backward()
+    optimizer.step()
+
+    if epoch % 50 == 0:
+        print(f"Epoch: {epoch}, Loss: {l.item()}" )
+
+with torch.no_grad():
+    prediction = pytorch_model(x1)
+    print("Prediction", prediction)
+    percentage_predictor = []
+    new_predlist = []
+    original_list = df['made'].tolist()
+    for p in prediction:
+        percentage_predictor.append(f"{(p.item()*100):.2f}")
+
+        if p.item()>0.5:
+            new_predlist.append(1)
+        else:
+            new_predlist.append(0)
+
+    score = 0
+    for i in range(len(new_predlist)):
+        if original_list[i] == new_predlist[i]:
+            score+=1
+    
+    accuracy = (score/len(original_list))*100
+
 
 cap = cv2.VideoCapture("vid (1).mp4")
-model = YOLO("yolo11m.pt")
+yolo_model = YOLO("yolo11m.pt")
 
 fps = cap.get(cv2.CAP_PROP_FPS)
 
@@ -15,6 +78,7 @@ last_make_frame = -9999
 make_cooldown_frames = 10
 rows = []
 made_any_shot = False
+last_chance = 0
 
 while True:
     success, img = cap.read()
@@ -23,7 +87,7 @@ while True:
     if not success:
         break
 
-    results = model(img)
+    results = yolo_model(img)
 
     annotated_frame = results[0].plot()
     
@@ -39,8 +103,8 @@ while True:
 
     for box in results[0].boxes:
         cls = int(box.cls[0])
-        name = model.names[cls]
-        print(name)
+        name = yolo_model.names[cls]
+        
 
         x,y, w,h = box.xywh[0]
         ball_x = int(x)
@@ -64,6 +128,14 @@ while True:
 
             distance = math.sqrt(dx**2 + dy**2)
 
+            with torch.no_grad():
+                input_tensor = torch.tensor([[frame, ball_x, ball_y, dx, dy, distance, vx, vy, speed]], dtype=torch.float32)
+                shot_chance = pytorch_model(input_tensor).item()
+                last_chance = shot_chance
+            cv2.putText(annotated_frame, f"Chance Shot is made: {last_chance*100:.2f}%", (10,75), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,0), 2)
+            cv2.putText(annotated_frame, f"Accuracy: {accuracy:.2f}%",(10,150),cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,255), 2)
+
+
             cv2.putText(annotated_frame, f"Dist: {int(distance)}", (ball_x,ball_y-10), cv2.FONT_HERSHEY_COMPLEX, 0.7, (0,0,255), 2)
             cv2.putText(annotated_frame, f"Speed: {int(speed)}", (ball_x, ball_y+30), cv2.FONT_HERSHEY_COMPLEX, 0.7, (255,0,0), 2)
             
@@ -73,15 +145,17 @@ while True:
                 and ball_y >= rim_y
                 and vy > 0
             )
-            within_hoop_width = abs(ball_x - rim_x) <= int(rim_radius * 0.75)
+            within_hoop_width = abs(dx) <= int(rim_radius * 0.75)
             cooldown_over = (frame - last_make_frame) > make_cooldown_frames
 
             if crosses_rim_plane and within_hoop_width and cooldown_over:
                 label = 1
                 last_make_frame = frame
                 made_any_shot = True
+                
             else:
                 label = 0
+                
 
             row = [frame, ball_x, ball_y, dx, dy, distance, vx, vy, speed, label]
             rows.append(row)
@@ -101,15 +175,28 @@ cv2.destroyAllWindows()
 
 if made_any_shot == True:
     final_label = 1
+    cv2.putText(annotated_frame, "Shot Made!", (10,75), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,0), 2)
 else:
     final_label = 0
+    cv2.putText(annotated_frame, "Shot Missed!", (10,75), cv2.FONT_HERSHEY_COMPLEX, 1, (255,0,0), 2)
 
-with open("Final_Shots.csv", "w", newline="") as file:
+
+file_exists = os.path.isfile("Final_Shots.csv") and os.path.getsize("Final_Shots.csv") > 0
+
+with open("Final_Shots.csv", "a", newline="") as file:
     writer = csv.writer(file)
-    writer.writerow(["frame", "ball_x", "ball_y", "dx", "dy", "distance", "vx", "vy", "speed", "label"])
+
+    if not file_exists:
+        writer.writerow(["frame", "ball_x", "ball_y", "dx", "dy", "distance", "vx", "vy", "speed", "made"])
+
     for row in rows:
         row[-1] = final_label
         writer.writerow(row)
+
+
+
+
+
 
     
 
