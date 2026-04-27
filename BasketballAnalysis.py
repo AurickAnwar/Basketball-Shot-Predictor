@@ -10,7 +10,7 @@ import torch.nn as nn
 
 df = pd.read_csv("Final_Shots.csv")
 
-df = df[df["frame"] != "frame"]
+df = df[df["frame"] != "frame"]#Remove header rows that may have been appended to the CSV file
 df =df.astype(float)
 x = df.drop("made", axis = 1)
 y = df['made']
@@ -19,7 +19,7 @@ x1 = torch.tensor(x.values, dtype = torch.float32)
 y1 = torch.tensor(y.values, dtype = torch.float32).view(-1,1)
 
 
-pytorch_model = nn.Sequential(
+pytorch_model = nn.Sequential(#break down the layers of the model
     nn.Linear(9,16),
     nn.ReLU(),
     nn.Linear(16,8),
@@ -30,7 +30,7 @@ pytorch_model = nn.Sequential(
 
 )
 
-loss = nn.BCELoss()
+loss = nn.BCELoss()#To predict probability between 0 and 1
 optimizer = torch.optim.Adam(pytorch_model.parameters(), lr=0.001)
 
 for epoch in range(1000):
@@ -42,9 +42,9 @@ for epoch in range(1000):
     optimizer.step()
 
     if epoch % 50 == 0:
-        print(f"Epoch: {epoch}, Loss: {l.item()}" )
+        print(f"Epoch: {epoch}, Loss: {l.item()}" )#print each epoch and loss to see how the model is learning
 
-with torch.no_grad():
+with torch.no_grad():#Make predictions with the trained model
     prediction = pytorch_model(x1)
     print("Prediction", prediction)
     percentage_predictor = []
@@ -54,7 +54,7 @@ with torch.no_grad():
         percentage_predictor.append(f"{(p.item()*100):.2f}")
 
         if p.item()>0.5:
-            new_predlist.append(1)
+            new_predlist.append(1)#if shot chance is greater than 50% predict it as a make
         else:
             new_predlist.append(0)
 
@@ -89,7 +89,7 @@ while True:
 
     results = yolo_model(img)
 
-    annotated_frame = results[0].plot()
+    annotated_frame = results[0].plot()#draw bounding boxes on the frame
     
     cv2.putText(annotated_frame, f"FPS: {fps}", (10,30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
     rim_x = 370
@@ -97,23 +97,23 @@ while True:
 
     rim_radius = 75
 
-    cv2.circle(annotated_frame, (rim_x,rim_y), rim_radius, (0,255,0),thickness=3)
+    cv2.circle(annotated_frame, (rim_x,rim_y), rim_radius, (0,255,0),thickness=3)#draw a circle around the rim to visualize the area where the ball needs to pass through to be considered a make
 
     speed = 0
 
-    for box in results[0].boxes:
+    for box in results[0].boxes:#bounding box info for each detected object in the frame
         cls = int(box.cls[0])
         name = yolo_model.names[cls]
         
 
-        x,y, w,h = box.xywh[0]
+        x,y, w,h = box.xywh[0] #center coordinates and dimensions of the bounding box
         ball_x = int(x)
         ball_y = int(y)
 
 
-        if name == "sports ball":
+        if name == "sports ball":#if the detected object is a sports ball
 
-            if prev_x is not None and prev_y is not None:
+            if prev_x is not None and prev_y is not None:#object's velocity and speed if there is a previous position to compare to
                 vx = (ball_x-prev_x)*fps
                 vy = (ball_y-prev_y)*fps
                 speed = math.sqrt(vx**2 + vy**2)
@@ -123,14 +123,14 @@ while True:
                 vy = 0
                 speed =0
 
-            dx = ball_x - rim_x
+            dx = ball_x - rim_x #distance from the ball to the rim in both x and y directions
             dy = ball_y - rim_y
 
-            distance = math.sqrt(dx**2 + dy**2)
+            distance = math.sqrt(dx**2 + dy**2) #total distance from the ball to the rim
 
             with torch.no_grad():
-                input_tensor = torch.tensor([[frame, ball_x, ball_y, dx, dy, distance, vx, vy, speed]], dtype=torch.float32)
-                shot_chance = pytorch_model(input_tensor).item()
+                input_tensor = torch.tensor([[frame, ball_x, ball_y, dx, dy, distance, vx, vy, speed]], dtype=torch.float32)#tensor with all the features of the current frame
+                shot_chance = pytorch_model(input_tensor).item()#predict the chance that the shot will be made using the trained model
                 last_chance = shot_chance
             cv2.putText(annotated_frame, f"Chance Shot is made: {last_chance*100:.2f}%", (10,75), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,0), 2)
             cv2.putText(annotated_frame, f"Accuracy: {accuracy:.2f}%",(10,150),cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,255), 2)
@@ -138,7 +138,9 @@ while True:
 
             cv2.putText(annotated_frame, f"Dist: {int(distance)}", (ball_x,ball_y-10), cv2.FONT_HERSHEY_COMPLEX, 0.7, (0,0,255), 2)
             cv2.putText(annotated_frame, f"Speed: {int(speed)}", (ball_x, ball_y+30), cv2.FONT_HERSHEY_COMPLEX, 0.7, (255,0,0), 2)
-            
+
+
+            #calculation for if the ball is crossing the plane of the rim, if it is within the width of the hoop, and if enough frames have passed since the last detected make to avoid multiple detections for the same shot
             crosses_rim_plane = (
                 prev_y is not None
                 and prev_y < rim_y
@@ -146,8 +148,7 @@ while True:
                 and vy > 0
             )
             within_hoop_width = abs(dx) <= int(rim_radius * 0.75)
-            cooldown_over = (frame - last_make_frame) > make_cooldown_frames
-
+            cooldown_over = (frame - last_make_frame) > make_cooldown_frames 
             if crosses_rim_plane and within_hoop_width and cooldown_over:
                 label = 1
                 last_make_frame = frame
@@ -175,12 +176,12 @@ cv2.destroyAllWindows()
 
 if made_any_shot == True:
     final_label = 1
-    cv2.putText(annotated_frame, "Shot Made!", (10,75), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,0), 2)
 else:
     final_label = 0
-    cv2.putText(annotated_frame, "Shot Missed!", (10,75), cv2.FONT_HERSHEY_COMPLEX, 1, (255,0,0), 2)
 
 
+
+#writing the collected data for each frame to a CSV file
 file_exists = os.path.isfile("Final_Shots.csv") and os.path.getsize("Final_Shots.csv") > 0
 
 with open("Final_Shots.csv", "a", newline="") as file:
