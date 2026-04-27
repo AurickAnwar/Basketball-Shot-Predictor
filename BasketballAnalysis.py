@@ -73,7 +73,7 @@ while True:
                 and ball_y >= rim_y
                 and vy > 0
             )
-            within_hoop_width = abs(ball_x - rim_x) <= int(rim_radius * 0.75)
+            within_hoop_width = abs(dx) <= int(rim_radius * 0.75)
             cooldown_over = (frame - last_make_frame) > make_cooldown_frames
 
             if crosses_rim_plane and within_hoop_width and cooldown_over:
