@@ -85,5 +85,10 @@ This project combines computer vision + physics + machine learning to simulate h
 🧑‍💻 Author
 Built by Aurick Anwar
 
+## 🚀 Demo
+
+![Preview](https://img.youtube.com/vi/B-A5uHzQIgI/0.jpg)
+
+▶️ Full Demo: https://www.youtube.com/watch?v=B-A5uHzQIgI
 
 
