@@ -66,7 +66,7 @@ with torch.no_grad():#Make predictions with the trained model
     accuracy = (score/len(original_list))*100
 
 
-cap = cv2.VideoCapture("vid (1).mp4")
+cap = cv2.VideoCapture("vid (2).mp4")
 yolo_model = YOLO("yolo11m.pt")
 
 fps = cap.get(cv2.CAP_PROP_FPS)
@@ -91,7 +91,7 @@ while True:
 
     annotated_frame = results[0].plot()#draw bounding boxes on the frame
     
-    cv2.putText(annotated_frame, f"FPS: {fps}", (10,30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
+    cv2.putText(annotated_frame, f"FPS: {fps}", (20,40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
     rim_x = 370
     rim_y = 600
 
@@ -132,8 +132,8 @@ while True:
                 input_tensor = torch.tensor([[frame, ball_x, ball_y, dx, dy, distance, vx, vy, speed]], dtype=torch.float32)#tensor with all the features of the current frame
                 shot_chance = pytorch_model(input_tensor).item()#predict the chance that the shot will be made using the trained model
                 last_chance = shot_chance
-            cv2.putText(annotated_frame, f"Chance Shot is made: {last_chance*100:.2f}%", (10,75), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,0), 2)
-            cv2.putText(annotated_frame, f"Accuracy: {accuracy:.2f}%",(10,150),cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,255), 2)
+            cv2.putText(annotated_frame, f"Chance Shot is made: {last_chance*100:.2f}%", (20,95), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,0), 2)
+            cv2.putText(annotated_frame, f"Accuracy: {accuracy:.2f}%",(20,150),cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,255), 2)
 
 
             cv2.putText(annotated_frame, f"Dist: {int(distance)}", (ball_x,ball_y-10), cv2.FONT_HERSHEY_COMPLEX, 0.7, (0,0,255), 2)
